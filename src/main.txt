@@ -1,0 +1,152 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <cstdlib> // for strtol
+#include <cstdint> // For uint8_t
+
+// --- Mocks ---
+namespace Keyboard
+{
+    void press(uint8_t key) { std::cout << "Keyboard.press(" << +key << ")\n"; }
+    void release(uint8_t key) { std::cout << "Keyboard.release(" << +key << ")\n"; }
+    void releaseAll() { std::cout << "Keyboard.releaseAll()\n"; }
+    void write(char ch) { std::cout << "Keyboard.write('" << ch << "')\n"; }
+}
+
+namespace Consumer
+{
+    void write(uint8_t key) { std::cout << "Consumer.write(" << +key << ")\n"; }
+    void release() { std::cout << "Consumer.release()\n"; }
+}
+
+std::string trim(const std::string &str)
+{
+    size_t first = str.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos)
+        return "";
+    size_t last = str.find_last_not_of(" \t\r\n");
+    return str.substr(first, (last - first + 1));
+}
+
+// --- Function under test ---
+void executeCommandForButton(uint8_t buttonIndex)
+{
+    std::ifstream file("commands.txt");
+    if (!file.is_open())
+    {
+        std::cout << "Failed to open commands file\n";
+        return;
+    }
+
+    std::string line;
+    int currentLine = 0;
+    while (std::getline(file, line))
+    {
+        if (currentLine == buttonIndex)
+            break;
+        currentLine++;
+    }
+    file.close();
+
+    line = trim(line);
+    if (line.empty())
+    {
+        std::cout << "No command on this line\n";
+        return;
+    }
+
+    size_t fromIndex = 0;
+    while (fromIndex < line.length())
+    {
+        size_t commaIndex = line.find(',', fromIndex);
+        std::string segment;
+        if (commaIndex == std::string::npos)
+        {
+            segment = line.substr(fromIndex);
+            fromIndex = line.length();
+        }
+        else
+        {
+            segment = line.substr(fromIndex, commaIndex - fromIndex);
+            fromIndex = commaIndex + 1;
+        }
+
+        segment = trim(segment);
+        if (segment.empty())
+            continue;
+
+        size_t sepIndex = segment.find(' ');
+        if (sepIndex == std::string::npos)
+            continue;
+
+        std::string cmdTypeStr = segment.substr(0, sepIndex);
+        std::string argStr = segment.substr(sepIndex + 1);
+
+        uint8_t cmdType = std::stoi(cmdTypeStr);
+
+        // New: Handle text typing for cmdType 7
+        if (cmdType == 7)
+        {
+            for (char ch : argStr)
+            {
+                Keyboard::write(ch);
+            }
+            continue;
+        }
+
+        uint8_t keyCode = static_cast<uint8_t>(strtol(argStr.c_str(), nullptr, 16));
+
+        switch (cmdType)
+        {
+        case 1:
+            Keyboard::press(keyCode);
+            break;
+        case 2:
+            Keyboard::press(keyCode);
+            break;
+        case 3:
+            Consumer::write(keyCode);
+            break;
+        case 4:
+            Keyboard::release(keyCode);
+            break;
+        case 5:
+            Keyboard::releaseAll();
+            break;
+        case 6:
+            Consumer::release();
+            break;
+        default:
+            std::cout << "Unknown command type\n";
+            break;
+        }
+    }
+}
+
+// --- Main Entry Point ---
+int main()
+{
+    std::cout << "Testing button index 0\n";
+    executeCommandForButton(0);
+
+    std::cout << "\nTesting button index 1\n";
+    executeCommandForButton(1);
+
+    std::cout << "\nTesting button index 2\n";
+    executeCommandForButton(2);
+
+    std::cout << "\nTesting button index 3\n";
+    executeCommandForButton(3);
+
+    std::cout << "\nTesting button index 4\n";
+    executeCommandForButton(4);
+
+    std::cout << "\nTesting button index 5\n";
+    executeCommandForButton(5);
+
+    std::cout << "\nTesting button index 6\n";
+    executeCommandForButton(6);
+
+    return 0;
+}
